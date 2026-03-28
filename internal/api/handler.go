@@ -2,17 +2,23 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"strings"
 
+	"github.com/OLABALADE/FluxKV/internal/cluster"
 	"github.com/OLABALADE/FluxKV/internal/store"
 )
 
 type Handler struct {
-	store store.Store
+	store   store.Store
+	cluster *cluster.Node
 }
 
-func NewHandler(s store.Store) *Handler {
-	return &Handler{store: s}
+func NewHandler(s store.Store, c *cluster.Node) *Handler {
+	return &Handler{store: s, cluster: c}
 }
 
 type Request struct {
@@ -27,8 +33,17 @@ func (h *Handler) Put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	targetNode := h.cluster.GetResponsibleNode(req.Key)
+	// If not target Node
+	if targetNode != h.cluster.Address {
+		h.FowardRequest(w, "put", targetNode, "", req)
+		return
+	}
+
+	log.Println("I'm responsible I", targetNode)
 	if err := h.store.Put(req.Key, req.Value); err != nil {
-		http.Error(w, "Failed to add Key to store", http.StatusInternalServerError)
+		log.Println("ERROR: ", err)
+		http.Error(w, "Failed to add key to store", http.StatusInternalServerError)
 		return
 	}
 
@@ -37,8 +52,18 @@ func (h *Handler) Put(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
+
+	targetNode := h.cluster.GetResponsibleNode(key)
+	// If not target Node
+	if targetNode != h.cluster.Address {
+		h.FowardRequest(w, "get", targetNode, key, nil)
+		return
+	}
+
+	log.Println("I'm responsible I", targetNode)
 	val, err := h.store.Get(key)
 	if err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
@@ -51,10 +76,49 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 
+	targetNode := h.cluster.GetResponsibleNode(key)
+	//If not target Node
+	if targetNode != h.cluster.Address {
+		h.FowardRequest(w, "delete", targetNode, key, nil)
+		return
+	}
+
+	log.Println("I'm responsible I", targetNode)
 	if err := h.store.Delete(key); err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) FowardRequest(w http.ResponseWriter, method, targetNode, key string, body any) {
+	log.Println("I'm not responsible ask", targetNode)
+	method = strings.ToLower(method)
+
+	url := ""
+
+	urlStr := "http://%s/"
+	if method == "get" || method == "delete" {
+		urlStr = urlStr + method + "?key=%s"
+		url = fmt.Sprintf(urlStr, targetNode, key)
+	} else {
+		url = fmt.Sprintf(urlStr, targetNode) + "/put"
+	}
+
+	resp, err := h.cluster.ForwardToNode(method, url, body)
+
+	if err != nil {
+		log.Println("ERROR: Failed to forward request", err)
+		http.Error(w, "Failed to forward request", http.StatusInternalServerError)
+		return
+	}
+
+	defer resp.Body.Close()
+
+	w.WriteHeader(resp.StatusCode)
+	if method == "get" {
+		io.Copy(w, resp.Body)
+	}
 }
