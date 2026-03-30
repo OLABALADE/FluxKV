@@ -3,8 +3,10 @@ package cluster
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"net/http"
 	"sort"
+	"time"
 )
 
 type Node struct {
@@ -41,8 +43,9 @@ func (n *Node) ForwardToNode(method, url string, body any) (*http.Response, erro
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	log.Printf("Forwarding %s request to %s\n", method, url)
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 2 * time.Second}
 	return client.Do(req)
 }
 

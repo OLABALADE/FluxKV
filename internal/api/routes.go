@@ -6,4 +6,6 @@ func RegisterRoutes(mux *http.ServeMux, h *Handler) {
 	mux.HandleFunc("/get", h.Get)
 	mux.HandleFunc("/put", h.Put)
 	mux.HandleFunc("/delete", h.Delete)
+	mux.HandleFunc("POST /replicate", h.ReplicatePut)
+	mux.HandleFunc("DELETE /replicate", h.ReplicateDelete)
 }

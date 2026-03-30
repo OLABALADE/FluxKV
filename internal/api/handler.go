@@ -27,7 +27,7 @@ type Request struct {
 }
 
 func (h *Handler) Put(w http.ResponseWriter, r *http.Request) {
-	req := &Request{}
+	req := Request{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid Request", http.StatusBadRequest)
 		return
@@ -47,20 +47,21 @@ func (h *Handler) Put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.cluster.Replicate("POST", req.Key, req.Value)
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 
-	targetNode := h.cluster.GetResponsibleNode(key)
-	// If not target Node
-	if targetNode != h.cluster.Address {
-		h.FowardRequest(w, "get", targetNode, key, nil)
-		return
-	}
-
-	log.Println("I'm responsible I", targetNode)
+	// targetNode := h.cluster.GetResponsibleNode(key)
+	// // // If not target Node
+	// // if targetNode != h.cluster.Address {
+	// // 	h.FowardRequest(w, "get", targetNode, key, nil)
+	// // 	return
+	// // }
+	// //
+	log.Println("I'm responsible I", h.cluster.Address)
 	val, err := h.store.Get(key)
 	if err != nil {
 		log.Println("ERROR: ", err)
@@ -76,20 +77,21 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 
-	targetNode := h.cluster.GetResponsibleNode(key)
+	// targetNode := h.cluster.GetResponsibleNode(key)
 	//If not target Node
-	if targetNode != h.cluster.Address {
-		h.FowardRequest(w, "delete", targetNode, key, nil)
-		return
-	}
+	// if targetNode != h.cluster.Address {
+	// 	h.FowardRequest(w, "delete", targetNode, key, nil)
+	// 	return
+	// }
 
-	log.Println("I'm responsible I", targetNode)
+	log.Println("I'm responsible I", h.cluster.Address)
 	if err := h.store.Delete(key); err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
 
+	h.cluster.Replicate("DELETE", key, "")
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -104,7 +106,7 @@ func (h *Handler) FowardRequest(w http.ResponseWriter, method, targetNode, key s
 		urlStr = urlStr + method + "?key=%s"
 		url = fmt.Sprintf(urlStr, targetNode, key)
 	} else {
-		url = fmt.Sprintf(urlStr, targetNode) + "/put"
+		url = fmt.Sprintf(urlStr, targetNode) + "put"
 	}
 
 	resp, err := h.cluster.ForwardToNode(method, url, body)
@@ -121,4 +123,34 @@ func (h *Handler) FowardRequest(w http.ResponseWriter, method, targetNode, key s
 	if method == "get" {
 		io.Copy(w, resp.Body)
 	}
+}
+
+func (h *Handler) ReplicatePut(w http.ResponseWriter, r *http.Request) {
+	req := Request{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid Request", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.store.Put(req.Key, req.Value); err != nil {
+		log.Println("ERROR: ", err)
+		http.Error(w, "Failed to add key to store", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("INFO: Replicated data into Store")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) ReplicateDelete(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("key")
+
+	if err := h.store.Delete(key); err != nil {
+		log.Println("ERROR: ", err)
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	log.Println("INFO: Removed replica data from Store")
+	w.WriteHeader(http.StatusOK)
 }
