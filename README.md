@@ -2,8 +2,6 @@
 
 A lightweight distributed key-value store built in Go.
 
----
-
 ## Overview
 
 FluxKV is a distributed key-value store that demonstrates core distributed systems concepts such as:
@@ -15,16 +13,12 @@ FluxKV is a distributed key-value store that demonstrates core distributed syste
 
 Unlike traditional systems, FluxKV does **not rely on a leader node** — each node independently handles requests and replication.
 
----
-
 ## Architecture
 
 * **API Layer** – Handles client requests (PUT, GET, DELETE)
 * **Cluster Layer** – Routes requests using consistent hashing
 * **Replication Layer** – Nodes replicate data to peers
 * **Storage Layer** – In-memory key-value store
-
----
 
 ## Features
 
@@ -33,8 +27,6 @@ Unlike traditional systems, FluxKV does **not rely on a leader node** — each n
 * Request forwarding between nodes
 * Decentralized (leaderless) replication
 * Multi-node cluster support
-
----
 
 ## Replication Model
 
@@ -47,7 +39,6 @@ FluxKV uses a **peer-to-peer replication model**:
 
 There is **no central leader** — all nodes participate equally.
 
----
 
 ## Getting Started
 
@@ -57,8 +48,6 @@ There is **no central leader** — all nodes participate equally.
 git clone https://github.com/yourusername/FluxKV.git
 cd FluxKV
 ```
-
----
 
 ### 2. Run a 3-node cluster
 
@@ -82,8 +71,6 @@ PEERS=localhost:8081,localhost:8082 \
 go run cmd/server/main.go
 ```
 
----
-
 ## Usage
 
 ### PUT
@@ -94,23 +81,17 @@ curl -X POST localhost:8081/put \
   -d '{"key":"foo","value":"bar"}'
 ```
 
----
-
 ### GET
 
 ```bash
 curl "localhost:8082/get?key=foo"
 ```
 
----
-
 ### DELETE
 
 ```bash
 curl -X DELETE "localhost:8083/delete?key=foo"
 ```
-
----
 
 ## How It Works
 
@@ -120,8 +101,6 @@ curl -X DELETE "localhost:8083/delete?key=foo"
 * The responsible node stores the data
 * Data is replicated to peer nodes
 
----
-
 ## Limitations
 
 * Eventual consistency (no strong guarantees)
@@ -129,8 +108,6 @@ curl -X DELETE "localhost:8083/delete?key=foo"
 * No failure detection
 * No conflict resolution
 * In-memory storage only
-
----
 
 ## Future Improvements
 
@@ -140,8 +117,6 @@ curl -X DELETE "localhost:8083/delete?key=foo"
 * Failure detection (gossip)
 * Conflict resolution (vector clocks / CRDTs)
 
----
-
 ## Learning Goals
 
 FluxKV explores:
@@ -150,5 +125,3 @@ FluxKV explores:
 * Data partitioning with consistent hashing
 * Decentralized replication
 * Handling partial failures
-
----
